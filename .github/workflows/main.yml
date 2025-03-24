@@ -1,37 +1,44 @@
-name: IP List Maintainer
+name: IP Auto-Processor
 
 on:
   push:
     paths:
-      - 'ipTop10.html'  # 路径需与实际存储位置完全匹配
+      - 'ipTop10.html'  # 精确路径匹配，注意大小写敏感
 
 jobs:
-  ip-processor:
+  ip-crawler:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # 关键权限：允许自动提交
+      contents: write  # 必须开启写权限
 
     steps:
-      # 步骤1：获取代码
-      - name: Checkout Code
+      # 阶段1：代码获取（无Pages痕迹）
+      - name: Checkout Source
         uses: actions/checkout@v4
         with:
-          persist-credentials: false  # 禁用默认凭证缓存
+          # 禁用所有Pages相关参数
+          persist-credentials: false
+          clean: true
 
-      # 步骤2：IP提取引擎
-      - name: IP Extraction
+      # 阶段2：IP提取（军用级正则）
+      - name: Extract Military-grade IPs
         run: |
-          # 使用加强型正则匹配严格过滤合法IP
-          grep -Eo '(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}' ipTop10.html \
-          | awk '!seen[$0]++' \  # 高效去重替代sort -u
-          > cfip.txt
+          # 超严格IP匹配模式（排除所有异常字符）
+          grep -Po '\b(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3}\b' ipTop10.html \
+          | awk '!x[$0]++' > cfip.txt  # 内存哈希去重
 
-      # 步骤3：智能提交系统
-      - name: Auto-Commit
-        uses: EndBug/[email protected]
-        with:
-          branch: main  # 根据实际分支名称修改
-          empty-commit: false
-          add: 'cfip.txt'
-          message: 'chore: Auto-sync IP database'
-          token: ${{ secrets.GITHUB_TOKEN }}
+      # 阶段3：安全提交（无第三方依赖）
+      - name: Secure Commit
+        run: |
+          # 强制重置用户配置
+          git config --global --unset-all http.https://github.com/.extraheader || true
+
+          # 原子级提交检测
+          if [ -n "$(git status --porcelain cfip.txt)" ]; then
+            git add cfip.txt
+            git -c user.name="CyberSec Bot" -c user.email="[email protected]" \
+              commit -m "IP数据库战备更新 $(date +'%Y-%m-%d %H:%M:%S')"
+            git push origin HEAD:${{ github.ref }}
+          else
+            echo "情报无变化，终止行动"
+          fi
