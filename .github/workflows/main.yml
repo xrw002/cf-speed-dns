@@ -1,4 +1,4 @@
-name: Extract IPs from ipTop10.html
+name: Update DNS IP List
 
 on:
   push:
@@ -6,26 +6,28 @@ on:
       - 'ipTop10.html'
 
 jobs:
-  extract-ips:
+  process-ips:
     runs-on: ubuntu-latest
-
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
 
-    - name: Extract IPs from ipTop10.html
-      id: extract-ips
+    - name: Extract and format IPs
       run: |
-        # 读取 ipTop10.html 文件内容
-        IP_LIST=$(cat ipTop10.html)
+        # 提取IP并格式化（逗号转行、去空格、去重、排序）
+        if [ -f ipTop10.html ]; then
+          cat ipTop10.html | tr ',' '\n' | sed 's/ //g' | grep -Eo '([0-9]{1,3}\.){3}[0-9]{1,3}' | sort -u > cfip.txt
+        else
+          echo "ipTop10.html not found!"
+          exit 1
+        fi
 
-        # 将逗号分隔的 IP 地址拆分为多行
-        echo "$IP_LIST" | tr ',' '\n' > cfip.txt
-
-    - name: Commit and push changes
-      run: |
-        git config --global user.name "github-actions[bot]"
-        git config --global user.email "github-actions[bot]@users.noreply.github.com"
-        git add cfip.txt
-        git commit -m "Update cfip.txt with latest IPs from ipTop10.html"
-        git push
+    - name: Commit changes
+      uses: EndBug/add-and-commit@v9
+      with:
+        add: cfip.txt
+        message: "Update CF IP list"
+        name: "DNS Pod Updater"
+        email: "actions@github.com"
