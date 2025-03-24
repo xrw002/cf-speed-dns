@@ -1,41 +1,37 @@
-name: Update DNS IP List
+name: IP List Maintainer
 
 on:
   push:
     paths:
-      - 'ipTop10.html'  # 仅当ipTop10.html变更时触发
+      - 'ipTop10.html'  # 路径需与实际存储位置完全匹配
 
 jobs:
-  process-ips:
+  ip-processor:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # 关键权限：允许自动提交
+
     steps:
-      # 步骤1：检出代码库
-      - name: Checkout Repository
+      # 步骤1：获取代码
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 获取完整提交历史用于检测变更
+          persist-credentials: false  # 禁用默认凭证缓存
 
-      # 步骤2：提取IP并格式化
-      - name: Extract IP Addresses
+      # 步骤2：IP提取引擎
+      - name: IP Extraction
         run: |
-          # 使用正则提取严格符合规范的IPv4地址（排除非法值）
-          grep -Po '(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}' ipTop10.html | sort -u > cfip.txt
+          # 使用加强型正则匹配严格过滤合法IP
+          grep -Eo '(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}' ipTop10.html \
+          | awk '!seen[$0]++' \  # 高效去重替代sort -u
+          > cfip.txt
 
-      # 步骤3：自动提交变更
-      - name: Commit IP Changes
-        run: |
-          git config --global user.name "GitHub Actions Bot"
-          git config --global user.email "actions-bot@users.noreply.github.com"
-          
-          # 配置含token的远程地址（写入权限关键）
-          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
-
-          # 检测文件变更并提交
-          git add cfip.txt
-          if ! git diff --cached --quiet; then
-            git commit -m "Auto-update cfip.txt with latest IPs"
-            git push
-            echo "✅ IP列表已更新"
-          else
-            echo "🔄 无IP变更需要提交"
-          fi
+      # 步骤3：智能提交系统
+      - name: Auto-Commit
+        uses: EndBug/[email protected]
+        with:
+          branch: main  # 根据实际分支名称修改
+          empty-commit: false
+          add: 'cfip.txt'
+          message: 'chore: Auto-sync IP database'
+          token: ${{ secrets.GITHUB_TOKEN }}
