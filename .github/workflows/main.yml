@@ -1,63 +1,31 @@
-name: IP Tactical Processor
+name: Extract IPs from ipTop10.html
 
 on:
   push:
     paths:
-      - 'ipTop10.html'  # 启用激光制导路径锁定
+      - 'ipTop10.html'
 
 jobs:
-  nuclear-cleaner:
-    runs-on: ubuntu-22.04
-    # 启动EMP电磁屏障（禁用所有非必要权限）
-    permissions:
-      contents: write
-      checks: write
-      deployments: false  # 关键！禁用部署权限
+  extract-ips:
+    runs-on: ubuntu-latest
 
     steps:
-      # 阶段1：无菌环境搭建
-      - name: Surgical Checkout
-        uses: actions/checkout@v4
-        with:
-          clean: true
-          sparse-checkout: |  # 战术级文件过滤
-            ipTop10.html
-            cfip.txt
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-      # 阶段2：反物质IP提取
-      - name: Quantum IP Extraction
-        run: |
-          # 启动量子筛选协议
-          LC_ALL=C grep -Eo \
-          '\b((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b' \
-          ipTop10.html | awk '!seen[$0]++' > cfip.txt
+    - name: Extract IPs from ipTop10.html
+      id: extract-ips
+      run: |
+        # 读取 ipTop10.html 文件内容
+        IP_LIST=$(cat ipTop10.html)
 
-          # 执行二进制熵检测（防止生成无效文件）
-          if [ $(file cfip.txt | grep -c 'ASCII text') -eq 0 ]; then
-            echo "::error file=cfip.txt::非法文件格式！激活自毁协议！"
-            exit 1
-          fi
+        # 将逗号分隔的 IP 地址拆分为多行
+        echo "$IP_LIST" | tr ',' '\n' > cfip.txt
 
-      # 阶段3：隐形提交协议
-      - name: Stealth Commit
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # 配置反侦察git参数
-          git config --global http.postBuffer 1048576000  # 1GB缓冲防御
-          git config --global core.compression 0
-
-          # 执行暗物质提交（无痕迹模式）
-          if [[ $(stat -c%s cfip.txt) -gt 10000000 ]]; then
-            echo "::warning::IP数据库体积异常，启动压缩协议"
-            gzip -9 cfip.txt
-            git add cfip.txt.gz
-          else
-            git add cfip.txt
-          fi
-
-          git -c user.name="Ghost" -c user.email="[email protected]" \
-            commit -m "IP暗网同步 $(openssl rand -hex 8)"
-          
-          # 使用游击战式推送（规避CI检测）
-          git push origin HEAD:${GITHUB_REF} --no-verify --force
+    - name: Commit and push changes
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git add cfip.txt
+        git commit -m "Update cfip.txt with latest IPs from ipTop10.html"
+        git push
