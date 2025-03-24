@@ -1,30 +1,30 @@
-name: Update cfip.txt from ipTop10.html
+name: Extract IPs from ipTop10.html
 
 on:
   push:
     paths:
-      - ipTop10.html
+      - "ipTop10.html"
+  workflow_dispatch: # 允许手动触发
 
 jobs:
-  update-ip:
+  extract_ips:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: 检出代码
+        uses: actions/checkout@v4
 
-      - name: Extract IPs and update cfip.txt
+      - name: 解析 IP 并写入 cfip.txt
         run: |
-          # 读取 ipTop10.html 内容，将逗号替换为换行符，生成 cfip.txt
-          tr ',' '\n' < ipTop10.html > cfip.txt
-          echo "cfip.txt 更新完成，内容如下："
-          cat cfip.txt
+          # 提取 HTML 文件中的 IP 地址（假设它们是用逗号分隔的）
+          grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' ipTop10.html | tr ',' '\n' > cfip.txt
+          cat cfip.txt  # 显示文件内容，方便调试
 
-      - name: Commit and push changes
+      - name: 提交并推送更改
         run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add cfip.txt
-          # 如果没有变更，则不会报错
-          git commit -m "Update cfip.txt with IP addresses" || echo "No changes to commit"
+          git commit -m "自动更新 cfip.txt"
           git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
