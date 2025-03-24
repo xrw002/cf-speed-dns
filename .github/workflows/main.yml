@@ -10,17 +10,54 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
-    - name: Extract and format IPs
+    - name: Clean workspace
       run: |
-        # 提取IP并格式化（逗号转行、去空格、去重、排序）
-        if [ -f ipTop10.html ]; then
-          cat ipTop10.html | tr ',' '\n' | sed 's/ //g' | grep -Eo '([0-9]{1,3}\.){3}[0-9]{1,3}' | sort -u > cfip.txt
-        else
-          echo "ipTop10.html not found!"
+        # 清理可能存在的残留文件
+        git clean -fdx
+
+    - name: Validate input file
+      run: |
+        if [ ! -f ipTop10.html ]; then
+          echo "❌ ipTop10.html not found!"
+          exit 1
+        fi
+
+        if [ $(wc -c < ipTop10.html) -gt 1048576 ]; then
+          echo "⚠️ ipTop10.html 文件大小超过 1MB，请检查数据合理性"
+          exit 1
+        fi
+
+    - name: Process IPs
+      run: |
+        # 处理IP地址（增加格式校验）
+        grep -Eo '([0-9]{1,3}\.){3}[0-9]{1,3}' ipTop10.html \
+        | awk -F. '$1 <=255 && $2 <=255 && $3 <=255 && $4 <=255' \
+        | sort -u -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n \
+        > cfip.txt
+
+        # 检查输出文件有效性
+        if [ ! -s cfip.txt ]; then
+          echo "❌ 生成的 cfip.txt 为空文件"
+          exit 1
+        fi
+
+        echo "✅ 生成有效IP数量: $(wc -l < cfip.txt)"
+
+    - name: Security check
+      run: |
+        # 检查文件属性
+        if [ -L cfip.txt ]; then
+          echo "❌ 检测到符号链接文件"
+          exit 1
+        fi
+
+        # 检查文件大小
+        if [ $(wc -c < cfip.txt) -gt 1048576 ]; then
+          echo "⚠️ cfip.txt 文件大小超过 1MB，请检查数据合理性"
           exit 1
         fi
 
@@ -31,3 +68,5 @@ jobs:
         message: "Update CF IP list"
         name: "DNS Pod Updater"
         email: "actions@github.com"
+        # 强制使用简单提交模式
+        default_author: true
