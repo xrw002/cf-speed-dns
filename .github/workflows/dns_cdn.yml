@@ -1,0 +1,41 @@
+name: Update DNS IP List
+
+on:
+  push:
+    paths:
+      - 'ipTop10.html'  # 仅当ipTop10.html变更时触发
+
+jobs:
+  process-ips:
+    runs-on: ubuntu-latest
+    steps:
+      # 步骤1：检出代码库
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取完整提交历史用于检测变更
+
+      # 步骤2：提取IP并格式化
+      - name: Extract IP Addresses
+        run: |
+          # 使用正则提取严格符合规范的IPv4地址（排除非法值）
+          grep -Po '(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}' ipTop10.html | sort -u > cfip.txt
+
+      # 步骤3：自动提交变更
+      - name: Commit IP Changes
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions-bot@users.noreply.github.com"
+          
+          # 配置含token的远程地址（写入权限关键）
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
+
+          # 检测文件变更并提交
+          git add cfip.txt
+          if ! git diff --cached --quiet; then
+            git commit -m "Auto-update cfip.txt with latest IPs"
+            git push
+            echo "✅ IP列表已更新"
+          else
+            echo "🔄 无IP变更需要提交"
+          fi
